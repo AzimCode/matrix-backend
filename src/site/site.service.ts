@@ -30,11 +30,11 @@ export class SiteService {
       return cached;
     }
 
-    const [profile, experience, projects, skills, education, certificates, resume] = await Promise.all([
+    const [profile, experience, projects, matrix, education, certificates, resume] = await Promise.all([
       this.profileService.getPublicProfile(),
       this.experienceService.findAll(),
       this.projectsService.findAllForSite(),
-      this.skillsService.findAll(),
+      this.skillsService.getMatrix(),
       this.educationService.findAll(),
       this.certificatesService.findAll(),
       this.resumeService.getActive().catch(() => null),
@@ -44,7 +44,8 @@ export class SiteService {
       profile,
       experience,
       projects,
-      skills,
+      skills: matrix.skills,
+      skillRelations: matrix.relations,
       education,
       certificates,
       resume: resume ? { version: resume.version, uploadedAt: resume.uploadedAt, downloadUrl: '/api/resume/download' } : null,
