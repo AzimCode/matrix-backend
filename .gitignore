@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.env
+.env.*.local
+*.log
+*.tsbuildinfo
+.DS_Store
+/generated
+minio-data
+postgres-data
+redis-data
