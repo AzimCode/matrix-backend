@@ -1,9 +1,10 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post, Req, Res } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { AuthenticatedUser } from '../common/interfaces/authenticated-user.interface';
@@ -75,6 +76,24 @@ export class AuthController {
     }
     const { passwordHash: _passwordHash, ...safe } = record;
     return safe;
+  }
+
+  @ApiCookieAuth()
+  @Patch('password')
+  @ApiOperation({
+    summary: 'Change your own password. Signs out every session, including this one.',
+  })
+  async changePassword(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    await this.usersService.changeOwnPassword(user.sub, dto.currentPassword, dto.newPassword);
+    // The refresh tokens were just revoked, so drop the cookies too rather
+    // than leaving the browser holding credentials that no longer work.
+    res.clearCookie(ACCESS_COOKIE, { path: '/' });
+    res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
+    return { updated: true, reloginRequired: true };
   }
 
   private setAuthCookies(res: Response, tokens: TokenPair): void {
