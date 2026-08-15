@@ -68,6 +68,14 @@ class EnvironmentVariables {
   @IsOptional()
   S3_FORCE_PATH_STYLE: string = 'true';
 
+  // Base URL browsers use to fetch media. On R2 the S3 API host does not
+  // serve objects publicly, so this is a different domain (pub-*.r2.dev or a
+  // custom one). Left empty, media URLs are derived from S3_ENDPOINT, which
+  // is correct for MinIO and any bucket served from its own API host.
+  @IsOptional()
+  @IsString()
+  S3_PUBLIC_URL?: string;
+
   @IsString()
   @IsNotEmpty()
   CORS_ORIGIN: string;

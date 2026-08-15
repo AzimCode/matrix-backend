@@ -16,6 +16,7 @@ export interface AppConfig {
     accessKey: string;
     secretKey: string;
     forcePathStyle: boolean;
+    publicUrl?: string;
   };
   cors: { origin: string[] };
   rateLimit: { max: number; windowSeconds: number };
@@ -43,6 +44,7 @@ export default (): AppConfig => ({
     accessKey: process.env.S3_ACCESS_KEY as string,
     secretKey: process.env.S3_SECRET_KEY as string,
     forcePathStyle: (process.env.S3_FORCE_PATH_STYLE ?? 'true') === 'true',
+    publicUrl: process.env.S3_PUBLIC_URL,
   },
   cors: {
     origin: (process.env.CORS_ORIGIN ?? '')

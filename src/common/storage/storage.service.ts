@@ -50,8 +50,18 @@ export class StorageService {
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
   }
 
-  /** Best-effort public URL for assets served from a public bucket/CDN (e.g. media library). */
+  /**
+   * Browser-facing URL for assets served straight from the bucket (media
+   * library). Prefers S3_PUBLIC_URL because on R2 — and behind any CDN — the
+   * S3 API host refuses anonymous reads, so URLs derived from it would render
+   * as broken images. Falls back to the API host, which is the same thing for
+   * MinIO and similar setups.
+   */
   publicUrl(key: string): string {
+    const configured = this.config.s3.publicUrl?.replace(/\/$/, '');
+    if (configured) {
+      return `${configured}/${key}`;
+    }
     const endpoint = this.config.s3.endpoint.replace(/\/$/, '');
     return this.config.s3.forcePathStyle
       ? `${endpoint}/${this.bucket}/${key}`

@@ -21,11 +21,23 @@ somewhere external.
 3. Save the **Access Key ID**, **Secret Access Key**, and the **S3 API endpoint**
    (looks like `https://<account-id>.r2.cloudflarestorage.com`).
 
-Media files are served through public URLs, so make the bucket public:
-**Settings → Public access → Allow**, and note the public URL.
+Media files are served straight from the bucket, so it needs a public host:
+open the bucket → **Settings** → **Public Development URL** → **Enable**, and
+copy the resulting `https://pub-….r2.dev` address. (Cloudflare used to call
+this "Public access"; a custom domain works too and is better long-term.)
 
-The CV is different — it is fetched through a short-lived signed URL, so it
-stays private regardless of that setting.
+That address goes in `S3_PUBLIC_URL`. It has to be separate from `S3_ENDPOINT`
+because the `r2.cloudflarestorage.com` API host rejects anonymous reads —
+image URLs built from it come back 401.
+
+Two things to get right when copying the endpoint:
+
+- R2 shows the S3 API as `https://<account>.r2.cloudflarestorage.com/<bucket>`.
+  `S3_ENDPOINT` must **exclude** the trailing `/<bucket>` — the bucket is passed
+  separately, so leaving it in produces `/bucket/bucket/key` and every upload
+  fails.
+- The CV is fetched through a short-lived signed URL, so it stays private no
+  matter what the public setting is.
 
 ---
 
@@ -46,7 +58,8 @@ stays private regardless of that setting.
 | `JWT_REFRESH_SECRET` | your saved secret |
 | `IP_HASH_PEPPER` | your saved secret — see the warning below |
 | `COOKIE_SECRET` | your saved secret |
-| `S3_ENDPOINT` | the R2 endpoint |
+| `S3_ENDPOINT` | the R2 endpoint, **without** the `/<bucket>` suffix |
+| `S3_PUBLIC_URL` | the `https://pub-….r2.dev` address |
 | `S3_BUCKET` | `matrix-portfolio` |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | the R2 token pair |
 | `S3_REGION` | `auto` |
