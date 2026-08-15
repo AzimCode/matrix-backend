@@ -21,6 +21,7 @@ export interface AppConfig {
   rateLimit: { max: number; windowSeconds: number };
   security: { ipHashPepper: string; cookieSecret: string };
   swaggerEnabled: boolean;
+  trustProxy: number;
   publicAppUrl?: string;
 }
 
@@ -58,5 +59,6 @@ export default (): AppConfig => ({
     cookieSecret: process.env.COOKIE_SECRET ?? 'change-me-cookie-secret',
   },
   swaggerEnabled: process.env.SWAGGER_ENABLED === 'true',
+  trustProxy: parseInt(process.env.TRUST_PROXY ?? '0', 10),
   publicAppUrl: process.env.PUBLIC_APP_URL,
 });

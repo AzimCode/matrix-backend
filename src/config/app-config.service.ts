@@ -55,6 +55,11 @@ export class AppConfigService {
     return !this.isProduction || this.config.get('swaggerEnabled', { infer: true });
   }
 
+  /** Reverse-proxy hops to trust; 0 means the app is directly reachable. */
+  get trustProxy(): number {
+    return this.config.get('trustProxy', { infer: true });
+  }
+
   get publicAppUrl(): string | undefined {
     return this.config.get('publicAppUrl', { infer: true });
   }

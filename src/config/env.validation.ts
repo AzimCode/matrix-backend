@@ -94,6 +94,15 @@ class EnvironmentVariables {
   @IsString()
   SWAGGER_ENABLED?: string;
 
+  // Number of reverse proxies in front of the app. Must be set (usually 1)
+  // on a PaaS, or every visitor shares one rate-limit bucket. Must stay 0
+  // when the app is directly reachable, or X-Forwarded-For can be forged.
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  TRUST_PROXY: number = 0;
+
   @IsOptional()
   @IsUrl({ require_tld: false })
   PUBLIC_APP_URL?: string;

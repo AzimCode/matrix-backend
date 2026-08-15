@@ -12,6 +12,15 @@ import { AppConfigService } from './config/app-config.service';
 export function configureApp(app: INestApplication): void {
   const config = app.get(AppConfigService);
 
+  // On a PaaS the app sits behind a load balancer, so req.ip would otherwise
+  // be the balancer's address — identical for every visitor, which collapses
+  // all rate limiting into a single shared bucket. Telling Express how many
+  // hops to trust makes it derive the real client IP from X-Forwarded-For,
+  // while still refusing to trust that header from a direct connection.
+  if (config.trustProxy > 0) {
+    app.getHttpAdapter().getInstance().set('trust proxy', config.trustProxy);
+  }
+
   app.use(
     helmet({
       contentSecurityPolicy: {
