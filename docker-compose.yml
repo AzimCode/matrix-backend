@@ -59,6 +59,24 @@ services:
       mc anonymous set download local/matrix-portfolio
       "
 
+  # Runs schema migrations once, then exits. Kept separate from `api` so
+  # migrations don't re-run on every app restart and can't race each other
+  # when the API is scaled to more than one replica. Runs as root because the
+  # prisma CLI writes into node_modules/@prisma/engines when it verifies
+  # engines — the API image itself still runs unprivileged.
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: root
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://matrix:matrix@postgres:5432/matrix_portfolio?schema=public
+    command: npx prisma migrate deploy
+
   api:
     build:
       context: .
@@ -71,6 +89,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -93,8 +113,6 @@ services:
       COOKIE_SECRET: ${COOKIE_SECRET:-dev-only-cookie-secret}
     ports:
       - '3000:3000'
-    command: >
-      sh -c "npx prisma migrate deploy && node dist/main.js"
 
 volumes:
   postgres-data:
