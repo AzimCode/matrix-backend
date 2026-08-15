@@ -72,8 +72,12 @@ Railway has no equivalent for. Run them once from your machine, pointing at the
 production database (copy `DATABASE_URL` from the Postgres service → Connect):
 
 ```bash
-DATABASE_URL="<production-url>" npx prisma migrate deploy
+$env:DATABASE_URL="<production-url>"; npx.cmd prisma migrate deploy
 ```
+
+(PowerShell has no inline `VAR=value cmd` syntax, and `npx` is a .ps1 that the
+default execution policy blocks — hence `$env:` and the `.cmd` suffix. In bash
+it would be `DATABASE_URL="..." npx prisma migrate deploy`.)
 
 ### The first admin account
 
@@ -82,14 +86,14 @@ want the account without Alexander Ivanov's fake projects, so create it
 directly instead of seeding:
 
 ```bash
-DATABASE_URL="<production-url>" node -e "const{PrismaClient}=require('@prisma/client');const a=require('argon2');(async()=>{const p=new PrismaClient();await p.adminUser.create({data:{email:process.argv[1],passwordHash:await a.hash(process.argv[2],{type:a.argon2id}),role:'ADMIN'}});console.log('created');await p.\$disconnect()})()" you@example.com 'YourStrongPassword123'
+$env:DATABASE_URL="<production-url>"; npx.cmd ts-node prisma/create-admin.ts you@example.com 'YourStrongPassword123'
 ```
 
 Then add your real content through the API.
 
 If you would rather start from the demo data and edit it, run
-`DATABASE_URL="<production-url>" npx prisma db seed` instead — but change the
-seeded password immediately via `PATCH /api/auth/password`.
+`$env:DATABASE_URL="<production-url>"; npx.cmd prisma db seed` instead — but
+change the seeded password immediately via `PATCH /api/auth/password`.
 
 ---
 
