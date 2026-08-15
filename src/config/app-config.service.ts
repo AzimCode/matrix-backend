@@ -50,6 +50,11 @@ export class AppConfigService {
     return this.config.get('security', { infer: true });
   }
 
+  /** Swagger is on outside production, or wherever SWAGGER_ENABLED is set explicitly. */
+  get swaggerEnabled(): boolean {
+    return !this.isProduction || this.config.get('swaggerEnabled', { infer: true });
+  }
+
   get publicAppUrl(): string | undefined {
     return this.config.get('publicAppUrl', { infer: true });
   }

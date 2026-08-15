@@ -20,6 +20,7 @@ export interface AppConfig {
   cors: { origin: string[] };
   rateLimit: { max: number; windowSeconds: number };
   security: { ipHashPepper: string; cookieSecret: string };
+  swaggerEnabled: boolean;
   publicAppUrl?: string;
 }
 
@@ -56,5 +57,6 @@ export default (): AppConfig => ({
     ipHashPepper: process.env.IP_HASH_PEPPER ?? 'change-me-ip-pepper',
     cookieSecret: process.env.COOKIE_SECRET ?? 'change-me-cookie-secret',
   },
+  swaggerEnabled: process.env.SWAGGER_ENABLED === 'true',
   publicAppUrl: process.env.PUBLIC_APP_URL,
 });

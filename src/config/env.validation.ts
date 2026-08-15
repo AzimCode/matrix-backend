@@ -88,6 +88,12 @@ class EnvironmentVariables {
   @IsString()
   COOKIE_SECRET: string = 'change-me-cookie-secret';
 
+  // Lets the local Docker stack expose /docs while still running the
+  // production build. Deliberate opt-in: off unless set to 'true'.
+  @IsOptional()
+  @IsString()
+  SWAGGER_ENABLED?: string;
+
   @IsOptional()
   @IsUrl({ require_tld: false })
   PUBLIC_APP_URL?: string;

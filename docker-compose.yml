@@ -111,6 +111,10 @@ services:
       RATE_LIMIT_WINDOW: 60
       IP_HASH_PEPPER: ${IP_HASH_PEPPER:-dev-only-pepper}
       COOKIE_SECRET: ${COOKIE_SECRET:-dev-only-cookie-secret}
+      # This stack runs the production build locally, which would otherwise
+      # hide /docs. Enabled here because it is the local admin surface; leave
+      # it unset on a real deployment or put the docs behind auth.
+      SWAGGER_ENABLED: 'true'
     ports:
       - '3000:3000'
 
