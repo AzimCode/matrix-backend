@@ -75,6 +75,31 @@ $('tabs').addEventListener('click', (e) => {
   if (tab) openTab(tab.dataset.tab);
 });
 
+/**
+ * Reporting every failure as "wrong password" is actively misleading: the
+ * login route is rate limited at 5 attempts a minute, so someone retrying a
+ * *correct* password gets throttled and told their credentials are wrong.
+ * Only an actual 401 means bad credentials.
+ */
+function loginErrorText(err) {
+  if (!(err instanceof ApiError)) {
+    return 'Сервер недоступен. Проверьте подключение.';
+  }
+  switch (err.code) {
+    case 'UNAUTHORIZED':
+      return 'Неверная почта или пароль';
+    case 'ACCOUNT_LOCKED':
+      return err.message;
+    case 'RATE_LIMITED':
+    case 'HTTP_429':
+      return 'Слишком много попыток входа. Подождите минуту и попробуйте снова.';
+    case 'VALIDATION_ERROR':
+      return err.fullMessage;
+    default:
+      return err.message || 'Не удалось войти';
+  }
+}
+
 $('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const btn = $('login-submit');
@@ -87,10 +112,7 @@ $('login-form').addEventListener('submit', async (e) => {
     const { user } = await api.login($('login-email').value.trim(), $('login-password').value);
     await showApp(user);
   } catch (err) {
-    errEl.textContent =
-      err instanceof ApiError && err.code === 'ACCOUNT_LOCKED'
-        ? err.message
-        : 'Неверная почта или пароль';
+    errEl.textContent = loginErrorText(err);
   } finally {
     btn.disabled = false;
     btn.textContent = 'AUTHENTICATE';
