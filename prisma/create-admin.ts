@@ -12,6 +12,20 @@ import * as argon2 from 'argon2';
 
 const MIN_PASSWORD_LENGTH = 12;
 
+// Mirrors CreateAdminUserDto so an account cannot be bootstrapped with a
+// password the API would later refuse on a change — otherwise the very first
+// admin ends up holding credentials the system considers too weak.
+function passwordProblems(password: string): string[] {
+  const problems: string[] = [];
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    problems.push(`at least ${MIN_PASSWORD_LENGTH} characters`);
+  }
+  if (!/[a-z]/.test(password)) problems.push('a lowercase letter');
+  if (!/[A-Z]/.test(password)) problems.push('an uppercase letter');
+  if (!/[0-9]/.test(password)) problems.push('a digit');
+  return problems;
+}
+
 async function main(): Promise<void> {
   const [email, password] = process.argv.slice(2);
 
@@ -19,8 +33,10 @@ async function main(): Promise<void> {
     console.error('Usage: ts-node prisma/create-admin.ts <email> <password>');
     process.exit(1);
   }
-  if (password.length < MIN_PASSWORD_LENGTH) {
-    console.error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+
+  const problems = passwordProblems(password);
+  if (problems.length) {
+    console.error(`Password must contain ${problems.join(', ')}.`);
     process.exit(1);
   }
 
