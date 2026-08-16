@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>SYSTEM_PROFILE — Admin</title>
+    <link rel="stylesheet" href="./admin.css" />
+  </head>
+  <body>
+    <!-- Login gate -->
+    <div id="login-view" class="login-wrap">
+      <form id="login-form" class="login-card" novalidate>
+        <div class="login-title">SYSTEM_PROFILE</div>
+        <div class="login-sub">// ADMIN ACCESS</div>
+        <label class="field">
+          <span>EMAIL</span>
+          <input id="login-email" type="email" autocomplete="username" required />
+        </label>
+        <label class="field">
+          <span>PASSWORD</span>
+          <input id="login-password" type="password" autocomplete="current-password" required />
+        </label>
+        <button id="login-submit" type="submit" class="btn btn-primary">AUTHENTICATE</button>
+        <div id="login-error" class="error" role="alert"></div>
+      </form>
+    </div>
+
+    <!-- Main app -->
+    <div id="app-view" hidden>
+      <header class="topbar">
+        <div class="brand">SYSTEM_PROFILE<span class="brand-dim">/admin</span></div>
+        <div class="topbar-right">
+          <a id="site-link" class="link" target="_blank" rel="noopener">открыть сайт ↗</a>
+          <span id="whoami" class="whoami"></span>
+          <button id="logout" class="btn btn-ghost">ВЫЙТИ</button>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tabs">
+        <button class="tab" data-tab="profile">Профиль</button>
+        <button class="tab" data-tab="experience">Опыт</button>
+        <button class="tab" data-tab="projects">Проекты</button>
+        <button class="tab" data-tab="skills">Навыки</button>
+        <button class="tab" data-tab="education">Образование</button>
+        <button class="tab" data-tab="certificates">Сертификаты</button>
+        <button class="tab" data-tab="resume">Резюме</button>
+        <button class="tab" data-tab="messages">Сообщения</button>
+        <button class="tab" data-tab="account">Аккаунт</button>
+      </nav>
+
+      <main id="panel" class="panel"></main>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script type="module" src="./admin.js"></script>
+  </body>
+</html>

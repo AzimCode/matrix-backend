@@ -1,4 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import compression from 'compression';
@@ -44,6 +46,15 @@ export function configureApp(app: INestApplication): void {
   });
 
   app.setGlobalPrefix('api', { exclude: ['health'] });
+
+  // The admin panel is served from the API's own origin on purpose: the
+  // session cookie is SameSite=strict, so a panel hosted on the public site's
+  // domain would never have it sent along. Same-origin also means the CSRF
+  // double-submit works without loosening anything.
+  const express = app as NestExpressApplication;
+  if (typeof express.useStaticAssets === 'function') {
+    express.useStaticAssets(join(__dirname, 'admin-ui'), { prefix: '/admin' });
+  }
 
   app.useGlobalPipes(
     new ValidationPipe({
