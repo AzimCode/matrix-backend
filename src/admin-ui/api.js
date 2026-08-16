@@ -26,6 +26,12 @@ export class ApiError extends Error {
   }
 }
 
+// A request that never settles leaves the UI frozen mid-action with no
+// explanation — the button stays on "..." forever and the page looks broken
+// rather than slow. Bound every call so a stalled network surfaces as an
+// error the user can act on.
+const TIMEOUT_MS = 20000;
+
 async function request(path, { method = 'GET', body, raw } = {}) {
   const headers = {};
   if (body && !raw) headers['Content-Type'] = 'application/json';
@@ -34,12 +40,26 @@ async function request(path, { method = 'GET', body, raw } = {}) {
     if (token) headers['X-CSRF-Token'] = token;
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    headers,
-    credentials: 'include',
-    body: raw ? body : body ? JSON.stringify(body) : undefined,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      headers,
+      credentials: 'include',
+      signal: controller.signal,
+      body: raw ? body : body ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new ApiError('TIMEOUT', `Сервер не ответил за ${TIMEOUT_MS / 1000} секунд`);
+    }
+    throw new ApiError('NETWORK', 'Не удалось связаться с сервером');
+  } finally {
+    clearTimeout(timer);
+  }
 
   let payload = null;
   try {

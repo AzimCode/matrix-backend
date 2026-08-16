@@ -95,6 +95,10 @@ function loginErrorText(err) {
       return 'Слишком много попыток входа. Подождите минуту и попробуйте снова.';
     case 'VALIDATION_ERROR':
       return err.fullMessage;
+    case 'TIMEOUT':
+      return 'Сервер не ответил вовремя. Проверьте подключение и попробуйте снова.';
+    case 'NETWORK':
+      return 'Не удалось связаться с сервером. Возможно, запрос блокируется сетью или расширением браузера.';
     default:
       return err.message || 'Не удалось войти';
   }
@@ -113,10 +117,22 @@ $('login-form').addEventListener('submit', async (e) => {
     await showApp(user);
   } catch (err) {
     errEl.textContent = loginErrorText(err);
+    // On a phone the message lands below the fold behind the keyboard, so an
+    // unscrolled failure reads as "nothing happened".
+    errEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   } finally {
     btn.disabled = false;
     btn.textContent = 'AUTHENTICATE';
   }
+});
+
+// Typing a long password blind on a phone is its own source of failed logins.
+$('pw-toggle').addEventListener('click', () => {
+  const input = $('login-password');
+  const shown = input.type === 'text';
+  input.type = shown ? 'password' : 'text';
+  $('pw-toggle').textContent = shown ? 'показать' : 'скрыть';
+  input.focus();
 });
 
 $('logout').addEventListener('click', async () => {

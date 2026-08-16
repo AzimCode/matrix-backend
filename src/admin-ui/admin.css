@@ -42,6 +42,26 @@ body {
   gap: 16px;
 }
 
+.pw-wrap { position: relative; display: flex; }
+.pw-wrap input { padding-right: 82px; }
+
+.pw-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.pw-toggle:hover { color: var(--accent); }
+
 .login-title { font-size: 18px; color: #eafff0; letter-spacing: 0.08em; }
 .login-sub { color: var(--accent); font-size: 12px; letter-spacing: 0.2em; margin-top: -10px; }
 
@@ -189,7 +209,17 @@ input[type='checkbox'] { width: auto; accent-color: var(--accent); }
 
 /* ── Feedback ──────────────────────────────────────────────── */
 
+/* Sits under the submit button, where a phone keyboard often covers it — so
+   it needs enough weight to register when the page scrolls back into view. */
 .error { color: var(--danger); font-size: 12px; min-height: 16px; }
+
+.login-card .error:not(:empty) {
+  font-size: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 93, 108, 0.5);
+  background: rgba(255, 93, 108, 0.1);
+  line-height: 1.45;
+}
 .ok { color: var(--accent); font-size: 12px; }
 
 .toast {
