@@ -1,5 +1,6 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { join } from 'path';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -55,6 +56,14 @@ export function configureApp(app: INestApplication): void {
   if (typeof express.useStaticAssets === 'function') {
     express.useStaticAssets(join(__dirname, 'admin-ui'), { prefix: '/admin' });
   }
+
+  // The API and the public site live on near-identical hostnames, so trimming
+  // "/admin/" off the address to reach the site lands on the API root instead
+  // — previously a bare NOT_FOUND that reads as an outage. Registered outside
+  // the controllers because those all sit behind the /api prefix.
+  express.getHttpAdapter().getInstance().get('/', (_req: unknown, res: Response) => {
+    res.redirect(302, '/admin/');
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

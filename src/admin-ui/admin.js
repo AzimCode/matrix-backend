@@ -35,13 +35,19 @@ async function showApp(user) {
   $('app-view').hidden = false;
   $('whoami').textContent = `${user.email} · ${user.role}`;
 
-  // The public site lives on its own domain; derive nothing, just link to the
-  // known one when configured, else hide the link.
+  // The site is on a different host, so the panel has to be told where it is
+  // rather than guessing from its own address — getting that wrong is what
+  // sends people to the API root looking for the site.
   const link = $('site-link');
-  const siteUrl = document.documentElement.dataset.siteUrl;
-  if (siteUrl) {
-    link.href = siteUrl;
-  } else {
+  try {
+    const { siteUrl } = await api.config();
+    if (siteUrl) {
+      link.href = siteUrl;
+      link.hidden = false;
+    } else {
+      link.hidden = true;
+    }
+  } catch {
     link.hidden = true;
   }
 
