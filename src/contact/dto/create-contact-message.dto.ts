@@ -16,6 +16,16 @@ export class CreateContactMessageDto {
   @MaxLength(255)
   email: string;
 
+  @ApiPropertyOptional({ description: 'Optional callback number' })
+  @IsOptional()
+  @IsString()
+  // Deliberately not IsPhoneNumber: visitors write numbers in whatever shape
+  // they use locally, and rejecting an unusual format would silently lose an
+  // enquiry over formatting. Sanitized like any other free text.
+  @MaxLength(40)
+  @Transform(({ value }) => sanitizePlainText(value))
+  phone?: string;
+
   @ApiProperty()
   @IsString()
   @MinLength(2)

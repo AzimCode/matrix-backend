@@ -305,6 +305,9 @@ model ContactMessage {
   id      String                @id @default(cuid())
   name    String
   email   String
+  // Optional: some people would rather be called back than emailed. Kept
+  // optional so asking for it never blocks someone from getting in touch.
+  phone   String?
   subject String
   message String                @db.Text
   status  ContactMessageStatus  @default(NEW)

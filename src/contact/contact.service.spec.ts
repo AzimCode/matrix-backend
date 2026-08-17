@@ -33,6 +33,18 @@ describe('ContactService', () => {
     expect(message.status).toBe(ContactMessageStatus.NEW);
   });
 
+  it('stores an optional phone number when the visitor leaves one', async () => {
+    await service.submit({ ...baseDto, phone: '+998 90 123-45-67' } as any, req);
+
+    expect(prisma.contactMessage.create.mock.calls[0][0].data.phone).toBe('+998 90 123-45-67');
+  });
+
+  it('stores null rather than an empty string when no phone is given', async () => {
+    await service.submit(baseDto as any, req);
+
+    expect(prisma.contactMessage.create.mock.calls[0][0].data.phone).toBeNull();
+  });
+
   it('never stores the raw IP address, only a hash', async () => {
     await service.submit(baseDto as any, req);
 

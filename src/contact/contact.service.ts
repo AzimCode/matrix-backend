@@ -32,6 +32,7 @@ export class ContactService {
       data: {
         name: dto.name,
         email: dto.email,
+        phone: dto.phone || null,
         subject: dto.subject,
         message: dto.message,
         ipHash,

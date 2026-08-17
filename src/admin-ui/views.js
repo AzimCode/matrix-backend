@@ -632,7 +632,9 @@ export async function renderMessages() {
       <div class="card-head">
         <div>
           <div class="card-title">${esc(m.subject)} <span class="badge ${badge}">${esc(m.status)}</span></div>
-          <div class="card-sub">${esc(m.name)} — ${esc(m.email)} · ${formatDate(m.createdAt)}</div>
+          <div class="card-sub">${esc(m.name)} — <a href="mailto:${esc(m.email)}" class="link">${esc(m.email)}</a>${
+            m.phone ? ` · <a href="tel:${esc(m.phone)}" class="link">${esc(m.phone)}</a>` : ''
+          } · ${formatDate(m.createdAt)}</div>
         </div>
         <div class="card-actions">
           <button class="btn btn-sm f-arch">В АРХИВ</button>
