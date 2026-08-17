@@ -14,6 +14,13 @@
 
 * { box-sizing: border-box; }
 
+/* Any class that sets its own `display` silently beats the user-agent rule
+   for [hidden], leaving "hidden" elements on screen. That is exactly what
+   kept the login form visible after a successful sign-in, pushing the panel
+   below the fold. Declared once, before anything else, so it holds for every
+   element in this app rather than needing a per-component override. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
