@@ -1,14 +1,12 @@
-import { PrismaClient, ProjectStatus, AvailabilityStatus, SystemStatusValue } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-// Must match PROFILE_SINGLETON_ID in src/profile/profile.service.ts
-const PROFILE_SINGLETON_ID = 'profile-singleton';
-
 /*
  * Demo content matching the SIGNAL design, so a fresh install looks like the
  * prototype instead of an empty page — and so the placeholder text can be
  * edited away one card at a time in the admin panel.
+ *
+ * Plain CommonJS on purpose. The production image runs `npm prune --omit=dev`,
+ * which takes ts-node with it, so a TypeScript seed cannot run where this most
+ * needs to: against the deployed database. `prisma` and `@prisma/client` are
+ * both runtime dependencies, so this file runs anywhere the app itself does.
  *
  * Every write is an upsert against a fixed id with `update: {}`, which makes
  * this safe to run against a database that already has real content: rows that
@@ -18,9 +16,15 @@ const PROFILE_SINGLETON_ID = 'profile-singleton';
  * the password policy enforced, rather than seeding a known default into a
  * database that may be reachable from the internet.
  */
+const { PrismaClient } = require('@prisma/client');
+
+const prisma = new PrismaClient();
+
+// Must match PROFILE_SINGLETON_ID in src/profile/profile.service.ts
+const PROFILE_SINGLETON_ID = 'profile-singleton';
 
 /** The design states proficiency out of 100; the schema stores 1–5. */
-const toLevel = (percent: number) => Math.min(5, Math.max(1, Math.round(percent / 20)));
+const toLevel = (percent) => Math.min(5, Math.max(1, Math.round(percent / 20)));
 
 const SKILLS = [
   // The first five carry the sort order that drives the About bars.
@@ -44,7 +48,7 @@ const SKILLS = [
  * site lights a relation in either direction, so storing both would only
  * duplicate rows in the panel.
  */
-const RELATIONS: [string, string][] = [
+const RELATIONS = [
   ['skill-react', 'skill-typescript'],
   ['skill-react', 'skill-framer-motion'],
   ['skill-react', 'skill-tailwind'],
@@ -187,7 +191,7 @@ const CERTIFICATES = [
   { id: 'cert-realtime-graphics', title: 'Real-Time Graphics', issuer: 'SIGGRAPH Course', issueDate: new Date('2021-01-01'), sortOrder: 2 },
 ];
 
-async function main(): Promise<void> {
+async function main() {
   console.log('Seeding SIGNAL demo content (existing rows are left untouched)...');
 
   // ── Profile ───────────────────────────────────────────────────────────
@@ -206,8 +210,8 @@ async function main(): Promise<void> {
         github: 'https://github.com/example',
         linkedin: 'https://linkedin.com/in/example',
       },
-      availability: AvailabilityStatus.AVAILABLE,
-      systemStatus: SystemStatusValue.ONLINE,
+      availability: 'AVAILABLE',
+      systemStatus: 'ONLINE',
       accentColor: '#00ff41',
       profileVersion: 'profile v2.4 — signal.core',
       terminalMessages: [
@@ -249,7 +253,7 @@ async function main(): Promise<void> {
   }
 
   // ── Projects ──────────────────────────────────────────────────────────
-  const techIds: Record<string, string> = {};
+  const techIds = {};
   for (const name of [...new Set(PROJECTS.flatMap((p) => p.technologies))]) {
     const tech = await prisma.technology.upsert({
       where: { name },
@@ -266,7 +270,7 @@ async function main(): Promise<void> {
       update: {},
       create: {
         ...rest,
-        status: ProjectStatus.PUBLISHED,
+        status: 'PUBLISHED',
         technologies: { create: technologies.map((name) => ({ technologyId: techIds[name] })) },
       },
     });
