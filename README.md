@@ -49,14 +49,16 @@ docker compose up --build
 This starts the API, PostgreSQL, Redis, and MinIO (as a local S3 stand-in, auto-provisioned with a bucket). The API runs its Prisma migrations automatically on boot. Once it's up:
 
 ```bash
-# Apply schema + seed demo Matrix CV data (profile, experience, projects, skill matrix, education, certificates, an admin user)
+# Apply schema + seed the SIGNAL demo content (profile, experience, projects, skills + relations, education, certificates)
 docker compose exec api npx prisma migrate deploy
 docker compose exec api npx prisma db seed
 ```
 
 API: `http://localhost:3000/api` · Swagger: `http://localhost:3000/docs` · MinIO console: `http://localhost:9001` (minioadmin/minioadmin)
 
-The seed script prints a generated admin login (default `admin@matrix.dev` / `ChangeMe123!` unless overridden via `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`). **Change this password immediately** via a real password-rotation flow before deploying anywhere reachable.
+The seed creates content only. The first admin account comes from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`, which the app applies on boot with the password policy enforced — the seed deliberately does not write a known default login into a database that might be reachable.
+
+Every seed write is an upsert against a fixed id that leaves existing rows alone, so it is safe to run against a database that already holds real content: it fills in what is missing and touches nothing else. Deleting a seeded row in the panel and then re-running the seed brings that row back, so run it once when setting up rather than as part of a deploy.
 
 ## Getting started (local, without Docker)
 

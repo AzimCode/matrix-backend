@@ -1,25 +1,194 @@
-import { PrismaClient, AdminRole, ProjectStatus, AvailabilityStatus, SystemStatusValue } from '@prisma/client';
-import * as argon2 from 'argon2';
+import { PrismaClient, ProjectStatus, AvailabilityStatus, SystemStatusValue } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 // Must match PROFILE_SINGLETON_ID in src/profile/profile.service.ts
 const PROFILE_SINGLETON_ID = 'profile-singleton';
 
+/*
+ * Demo content matching the SIGNAL design, so a fresh install looks like the
+ * prototype instead of an empty page — and so the placeholder text can be
+ * edited away one card at a time in the admin panel.
+ *
+ * Every write is an upsert against a fixed id with `update: {}`, which makes
+ * this safe to run against a database that already has real content: rows that
+ * exist are left exactly as they are, and only what is missing gets added.
+ * That is also why it deliberately does not create an admin user — the app
+ * bootstraps the first account itself from ADMIN_EMAIL / ADMIN_PASSWORD, with
+ * the password policy enforced, rather than seeding a known default into a
+ * database that may be reachable from the internet.
+ */
+
+/** The design states proficiency out of 100; the schema stores 1–5. */
+const toLevel = (percent: number) => Math.min(5, Math.max(1, Math.round(percent / 20)));
+
+const SKILLS = [
+  // The first five carry the sort order that drives the About bars.
+  { id: 'skill-react', name: 'React', category: 'Interface', percent: 96, sortOrder: 1 },
+  { id: 'skill-typescript', name: 'TypeScript', category: 'Interface', percent: 92, sortOrder: 2 },
+  { id: 'skill-framer-motion', name: 'Framer Motion', category: 'Motion', percent: 90, sortOrder: 3 },
+  { id: 'skill-design-systems', name: 'Design Systems', category: 'Craft', percent: 88, sortOrder: 4 },
+  { id: 'skill-webgl', name: 'WebGL / GLSL', category: 'Motion', percent: 74, sortOrder: 5 },
+  { id: 'skill-tailwind', name: 'Tailwind', category: 'Interface', percent: 86, sortOrder: 6 },
+  { id: 'skill-vite', name: 'Vite', category: 'Platform', percent: 80, sortOrder: 7 },
+  { id: 'skill-node', name: 'Node', category: 'Platform', percent: 72, sortOrder: 8 },
+  { id: 'skill-nestjs', name: 'NestJS', category: 'Platform', percent: 66, sortOrder: 9 },
+  { id: 'skill-rive', name: 'Rive', category: 'Motion', percent: 58, sortOrder: 10 },
+  { id: 'skill-figma', name: 'Figma', category: 'Craft', percent: 90, sortOrder: 11 },
+  { id: 'skill-typography', name: 'Typography', category: 'Craft', percent: 84, sortOrder: 12 },
+  { id: 'skill-accessibility', name: 'Accessibility', category: 'Craft', percent: 78, sortOrder: 13 },
+];
+
+/**
+ * Stored once per pair. The design lists each relation from both ends, but the
+ * site lights a relation in either direction, so storing both would only
+ * duplicate rows in the panel.
+ */
+const RELATIONS: [string, string][] = [
+  ['skill-react', 'skill-typescript'],
+  ['skill-react', 'skill-framer-motion'],
+  ['skill-react', 'skill-tailwind'],
+  ['skill-react', 'skill-vite'],
+  ['skill-typescript', 'skill-node'],
+  ['skill-typescript', 'skill-nestjs'],
+  ['skill-typescript', 'skill-vite'],
+  ['skill-framer-motion', 'skill-rive'],
+  ['skill-framer-motion', 'skill-typography'],
+  ['skill-framer-motion', 'skill-webgl'],
+  ['skill-design-systems', 'skill-figma'],
+  ['skill-design-systems', 'skill-typography'],
+  ['skill-design-systems', 'skill-tailwind'],
+  ['skill-design-systems', 'skill-accessibility'],
+  ['skill-webgl', 'skill-rive'],
+  ['skill-node', 'skill-nestjs'],
+  ['skill-figma', 'skill-typography'],
+];
+
+const EXPERIENCE = [
+  {
+    id: 'exp-ostrom',
+    company: 'Ostrom Financial',
+    position: 'Principal Frontend Engineer',
+    startDate: new Date('2023-01-01'),
+    endDate: null,
+    current: true,
+    achievements: [
+      'Rebuilt the trading console around a motion language; task completion up 31%.',
+      'Shipped a 240-component design system consumed by six product teams.',
+      'Cut first-paint on the dashboard from 3.4s to 900ms.',
+    ],
+    sortOrder: 0,
+  },
+  {
+    id: 'exp-kaleidos',
+    company: 'Kaleidos Studio',
+    position: 'Senior Interface Engineer',
+    startDate: new Date('2020-01-01'),
+    endDate: new Date('2023-01-01'),
+    current: false,
+    achievements: [
+      'Led frontend for eleven client sites, four of them awarded.',
+      "Built the studio's WebGL transition kit, still in use.",
+    ],
+    sortOrder: 1,
+  },
+  {
+    id: 'exp-northline',
+    company: 'Northline Broadcast',
+    position: 'Frontend Developer',
+    startDate: new Date('2017-01-01'),
+    endDate: new Date('2020-01-01'),
+    current: false,
+    achievements: [
+      'Authored the on-air graphics motion spec adopted across two channels.',
+      'Maintained a real-time results overlay for 40+ live events.',
+    ],
+    sortOrder: 2,
+  },
+];
+
+const PROJECTS = [
+  {
+    id: 'project-ostrom-console',
+    slug: 'ostrom-console',
+    title: 'Ostrom Console',
+    description: 'Real-time trading surface with a motion grammar for state change.',
+    year: 2025,
+    technologies: ['React', 'TypeScript', 'WebGL'],
+    featured: true,
+    sortOrder: 0,
+  },
+  {
+    id: 'project-meridian-type',
+    slug: 'meridian-type',
+    title: 'Meridian Type',
+    description: 'Variable-font specimen and licensing storefront.',
+    year: 2024,
+    technologies: ['Next', 'Framer Motion'],
+    featured: false,
+    sortOrder: 1,
+  },
+  {
+    id: 'project-northline-overlay',
+    slug: 'northline-overlay',
+    title: 'Northline Overlay',
+    description: 'Broadcast results graphics driven by a live feed.',
+    year: 2023,
+    technologies: ['Svelte', 'Rive'],
+    featured: false,
+    sortOrder: 2,
+  },
+  {
+    id: 'project-field-notes',
+    slug: 'field-notes',
+    title: 'Field Notes',
+    description: 'Offline-first research capture app for site surveys.',
+    year: 2022,
+    technologies: ['React Native', 'SQLite'],
+    featured: false,
+    sortOrder: 3,
+  },
+  {
+    id: 'project-pulse',
+    slug: 'pulse',
+    title: 'Pulse',
+    description: 'Open-source scroll-linked animation primitives.',
+    year: 2021,
+    technologies: ['TypeScript'],
+    featured: false,
+    sortOrder: 4,
+  },
+];
+
+const EDUCATION = [
+  {
+    id: 'edu-rca',
+    institution: 'Royal College of Art',
+    degree: 'MA',
+    field: 'Interaction Design',
+    startDate: new Date('2015-09-01'),
+    endDate: new Date('2017-06-30'),
+    sortOrder: 0,
+  },
+  {
+    id: 'edu-bristol',
+    institution: 'University of Bristol',
+    degree: 'BSc',
+    field: 'Computer Science',
+    startDate: new Date('2011-09-01'),
+    endDate: new Date('2015-06-30'),
+    sortOrder: 1,
+  },
+];
+
+const CERTIFICATES = [
+  { id: 'cert-motion-systems', title: 'Advanced Motion Systems', issuer: 'School of Motion', issueDate: new Date('2024-01-01'), sortOrder: 0 },
+  { id: 'cert-cpacc', title: 'Accessibility Specialist (CPACC)', issuer: 'IAAP', issueDate: new Date('2022-01-01'), sortOrder: 1 },
+  { id: 'cert-realtime-graphics', title: 'Real-Time Graphics', issuer: 'SIGGRAPH Course', issueDate: new Date('2021-01-01'), sortOrder: 2 },
+];
+
 async function main(): Promise<void> {
-  console.log('Seeding THE MATRIX — SYSTEM PROFILE demo data...');
-
-  // ── Admin user ────────────────────────────────────────────────────────
-  const adminEmail = process.env.SEED_ADMIN_EMAIL ?? 'admin@matrix.dev';
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'ChangeMe123!';
-  const passwordHash = await argon2.hash(adminPassword, { type: argon2.argon2id });
-
-  await prisma.adminUser.upsert({
-    where: { email: adminEmail },
-    update: {},
-    create: { email: adminEmail, passwordHash, role: AdminRole.ADMIN },
-  });
-  console.log(`Admin user ready: ${adminEmail} / ${adminPassword} (change this immediately)`);
+  console.log('Seeding SIGNAL demo content (existing rows are left untouched)...');
 
   // ── Profile ───────────────────────────────────────────────────────────
   await prisma.profile.upsert({
@@ -27,237 +196,90 @@ async function main(): Promise<void> {
     update: {},
     create: {
       id: PROFILE_SINGLETON_ID,
-      name: 'Alexander Ivanov',
-      headline: 'Product Designer / Creative Developer',
-      location: 'Tashkent, Uzbekistan',
-      bio: 'I build interfaces that feel alive — part interaction design, part systems engineering, part digital rebellion. Ten years of turning "what if" into shipped product.',
-      avatarUrl: null,
-      email: 'contact@alexivanov.dev',
-      phone: '+998901234567',
-      website: 'https://alexivanov.dev',
+      name: 'Mara Vieth',
+      headline: 'Interface engineer, motion-first',
+      location: 'London, United Kingdom',
+      bio: 'I design and build the front half of products: the part people touch, and the part that has to feel inevitable. My work sits between engineering and choreography — typography that lands with weight, transitions that explain what just happened, interfaces that stay legible at speed.',
+      email: 'hello@example.com',
+      website: 'https://example.com',
       socialLinks: {
-        linkedin: 'https://linkedin.com/in/alexivanov',
-        github: 'https://github.com/alexivanov',
-        telegram: 'https://t.me/alexivanov',
+        github: 'https://github.com/example',
+        linkedin: 'https://linkedin.com/in/example',
       },
       availability: AvailabilityStatus.AVAILABLE,
       systemStatus: SystemStatusValue.ONLINE,
       accentColor: '#00ff41',
-      profileVersion: '2.7.1',
+      profileVersion: 'profile v2.4 — signal.core',
       terminalMessages: [
-        'INITIALIZING PROFILE...',
-        'DECRYPTING IDENTITY MATRIX...',
-        'IDENTITY FOUND',
-        'ACCESS GRANTED',
-        'WELCOME BACK, OPERATOR',
+        '> signal.core :: init',
+        '> GET /site ............ 200 ok',
+        '> GET /system/status ... 200 ok',
+        '> accent channel locked #00FF41',
+        '> render',
       ],
     },
   });
 
   // ── Experience ────────────────────────────────────────────────────────
-  await prisma.experience.createMany({
-    skipDuplicates: true,
-    data: [
-      {
-        id: 'exp-nebula',
-        company: 'Nebula Systems',
-        position: 'Lead Product Designer',
-        location: 'Remote',
-        startDate: new Date('2023-02-01'),
-        endDate: null,
-        current: true,
-        description: 'Leading design for a real-time collaboration platform used by 40k+ teams.',
-        achievements: [
-          'Cut onboarding time by 63% through a redesigned first-run flow',
-          'Built and shipped a scalable design system adopted across 6 product squads',
-        ],
-        technologies: ['Figma', 'React', 'WebGL', 'Framer Motion'],
-        sortOrder: 0,
-      },
-      {
-        id: 'exp-obsidian',
-        company: 'Obsidian Labs',
-        position: 'Senior Creative Developer',
-        location: 'Berlin, Germany',
-        startDate: new Date('2020-06-01'),
-        endDate: new Date('2023-01-15'),
-        current: false,
-        description: 'Built award-winning interactive experiences for clients across fintech and entertainment.',
-        achievements: [
-          'Led a 3D product configurator that increased conversion by 28%',
-          'Mentored a team of 4 junior developers',
-        ],
-        technologies: ['Three.js', 'TypeScript', 'GLSL', 'Node.js'],
-        sortOrder: 1,
-      },
-      {
-        id: 'exp-freelance',
-        company: 'Independent',
-        position: 'Freelance Designer & Developer',
-        location: 'Remote',
-        startDate: new Date('2017-03-01'),
-        endDate: new Date('2020-05-30'),
-        current: false,
-        description: 'Designed and built digital products for startups across 12 countries.',
-        achievements: ['Delivered 30+ projects with a 100% on-time record'],
-        technologies: ['Vue.js', 'Sketch', 'WordPress'],
-        sortOrder: 2,
-      },
-    ],
-  });
-
-  // ── Skills (the Matrix) ───────────────────────────────────────────────
-  const skillDefs = [
-    { id: 'skill-ux', name: 'UX', category: 'DESIGN', level: 5, years: 9, color: '#00ff41', sortOrder: 0 },
-    { id: 'skill-ui', name: 'UI', category: 'DESIGN', level: 5, years: 9, color: '#00ff41', sortOrder: 1 },
-    { id: 'skill-3d', name: '3D', category: 'CREATIVE', level: 4, years: 5, color: '#39ff14', sortOrder: 2 },
-    { id: 'skill-code', name: 'CODE', category: 'ENGINEERING', level: 5, years: 10, color: '#00cc33', sortOrder: 3 },
-    { id: 'skill-ai', name: 'AI', category: 'ENGINEERING', level: 3, years: 2, color: '#00ff88', sortOrder: 4 },
-    { id: 'skill-motion', name: 'MOTION', category: 'CREATIVE', level: 4, years: 6, color: '#39ff14', sortOrder: 5 },
-    { id: 'skill-webgl', name: 'WEBGL', category: 'ENGINEERING', level: 4, years: 4, color: '#00cc33', sortOrder: 6 },
-    { id: 'skill-react', name: 'REACT', category: 'ENGINEERING', level: 5, years: 7, color: '#00cc33', sortOrder: 7 },
-    { id: 'skill-figma', name: 'FIGMA', category: 'DESIGN', level: 5, years: 8, color: '#00ff41', sortOrder: 8 },
-  ];
-  for (const skill of skillDefs) {
-    await prisma.skill.upsert({ where: { id: skill.id }, update: {}, create: skill });
+  for (const job of EXPERIENCE) {
+    await prisma.experience.upsert({
+      where: { id: job.id },
+      update: {},
+      // No description or tech list in the design; both are optional on the
+      // page and can be filled in from the panel.
+      create: { ...job, description: '', technologies: [] },
+    });
   }
 
-  const relations: [string, string, number][] = [
-    ['skill-ux', 'skill-ui', 5],
-    ['skill-ui', 'skill-figma', 5],
-    ['skill-code', 'skill-react', 5],
-    ['skill-react', 'skill-webgl', 3],
-    ['skill-webgl', 'skill-3d', 4],
-    ['skill-motion', 'skill-3d', 4],
-    ['skill-motion', 'skill-ui', 3],
-    ['skill-code', 'skill-ai', 3],
-    ['skill-code', 'skill-webgl', 4],
-  ];
-  for (const [skillId, relatedSkillId, strength] of relations) {
+  // ── Skills + the relation graph ───────────────────────────────────────
+  for (const { percent, ...skill } of SKILLS) {
+    await prisma.skill.upsert({
+      where: { id: skill.id },
+      update: {},
+      create: { ...skill, level: toLevel(percent) },
+    });
+  }
+
+  for (const [skillId, relatedSkillId] of RELATIONS) {
     await prisma.skillRelation.upsert({
       where: { skillId_relatedSkillId: { skillId, relatedSkillId } },
-      update: { strength },
-      create: { skillId, relatedSkillId, strength },
+      update: {},
+      create: { skillId, relatedSkillId, strength: 3 },
     });
   }
 
   // ── Projects ──────────────────────────────────────────────────────────
-  const techNames = ['React', 'TypeScript', 'Three.js', 'WebGL', 'Figma', 'Node.js', 'PostgreSQL', 'Framer Motion'];
-  const technologies: Record<string, { id: string }> = {};
-  for (const name of techNames) {
-    technologies[name] = await prisma.technology.upsert({
+  const techIds: Record<string, string> = {};
+  for (const name of [...new Set(PROJECTS.flatMap((p) => p.technologies))]) {
+    const tech = await prisma.technology.upsert({
       where: { name },
       update: {},
       create: { name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') },
     });
+    techIds[name] = tech.id;
   }
 
-  const projectDefs = [
-    {
-      id: 'project-nexus',
-      slug: 'nexus-collaboration-platform',
-      title: 'Nexus',
-      subtitle: 'Real-time collaboration platform',
-      description:
-        'A ground-up redesign of a real-time collaboration platform, from information architecture to a custom WebGL canvas renderer.',
-      year: 2025,
-      role: 'Lead Product Designer',
-      client: 'Nebula Systems',
-      technologies: ['React', 'TypeScript', 'WebGL', 'Node.js'],
-      featured: true,
-      sortOrder: 0,
-    },
-    {
-      id: 'project-configurator',
-      slug: '3d-product-configurator',
-      title: '3D Configurator',
-      subtitle: 'Interactive product visualization',
-      description:
-        'A photorealistic 3D product configurator built with Three.js, driving a 28% lift in checkout conversion.',
-      year: 2023,
-      role: 'Creative Developer',
-      client: 'Obsidian Labs',
-      technologies: ['Three.js', 'TypeScript', 'React'],
-      featured: true,
-      sortOrder: 1,
-    },
-    {
-      id: 'project-matrix-cv',
-      slug: 'the-matrix-system-profile',
-      title: 'THE MATRIX — SYSTEM PROFILE',
-      subtitle: 'This very site',
-      description:
-        'An interactive personal CV/portfolio with a Matrix aesthetic — glitch effects, scroll-driven 3D, and a fully-typed NestJS backend.',
-      year: 2026,
-      role: 'Designer & Full-stack Developer',
-      client: 'Self-initiated',
-      technologies: ['React', 'TypeScript', 'PostgreSQL', 'Framer Motion'],
-      featured: true,
-      sortOrder: 2,
-    },
-  ];
-
-  for (const p of projectDefs) {
+  for (const project of PROJECTS) {
+    const { technologies, ...rest } = project;
     await prisma.project.upsert({
-      where: { id: p.id },
+      where: { id: project.id },
       update: {},
       create: {
-        id: p.id,
-        slug: p.slug,
-        title: p.title,
-        subtitle: p.subtitle,
-        description: p.description,
-        year: p.year,
-        role: p.role,
-        client: p.client,
-        featured: p.featured,
-        sortOrder: p.sortOrder,
+        ...rest,
         status: ProjectStatus.PUBLISHED,
-        technologies: {
-          create: p.technologies.map((name) => ({ technologyId: technologies[name].id })),
-        },
+        technologies: { create: technologies.map((name) => ({ technologyId: techIds[name] })) },
       },
     });
   }
 
-  // ── Education ─────────────────────────────────────────────────────────
-  await prisma.education.upsert({
-    where: { id: 'edu-1' },
-    update: {},
-    create: {
-      id: 'edu-1',
-      institution: 'National University of Uzbekistan',
-      degree: 'B.Sc. Computer Science',
-      field: 'Human-Computer Interaction',
-      startDate: new Date('2013-09-01'),
-      endDate: new Date('2017-06-30'),
-      description: 'Focused on interaction design and real-time graphics.',
-      sortOrder: 0,
-    },
-  });
+  // ── Education & certificates ──────────────────────────────────────────
+  for (const item of EDUCATION) {
+    await prisma.education.upsert({ where: { id: item.id }, update: {}, create: item });
+  }
 
-  // ── Certificates ──────────────────────────────────────────────────────
-  await prisma.certificate.createMany({
-    skipDuplicates: true,
-    data: [
-      {
-        id: 'cert-1',
-        title: 'Advanced React Patterns',
-        issuer: 'Frontend Masters',
-        issueDate: new Date('2022-04-10'),
-        credentialUrl: 'https://frontendmasters.com/certificates/example',
-        sortOrder: 0,
-      },
-      {
-        id: 'cert-2',
-        title: 'WebGL & Three.js Journey',
-        issuer: 'Three.js Journey',
-        issueDate: new Date('2021-11-02'),
-        credentialUrl: 'https://threejs-journey.com/certificates/example',
-        sortOrder: 1,
-      },
-    ],
-  });
+  for (const item of CERTIFICATES) {
+    await prisma.certificate.upsert({ where: { id: item.id }, update: {}, create: item });
+  }
 
   console.log('Seed complete.');
 }
