@@ -6,8 +6,7 @@
   },
   "deploy": {
     "//": "Railway has no one-shot job primitive, so the migrate service from docker-compose.yml has no equivalent here. preDeployCommand is the platform's stand-in: it runs once per deploy, inside the network where postgres.railway.internal resolves, and the deploy is aborted if it fails. `migrate deploy` is idempotent, so redeploys with no new migrations are a no-op.",
-    "//seed": "TEMPORARY: seeds the design's demo content into the deployed database once. Railway accepts a single pre-deploy command, so the seed is chained onto the migration and only runs if it succeeded. Every seed write is an upsert that leaves existing rows alone, but it does re-create rows deleted in the panel, so this comes back out as soon as it has run.",
-    "preDeployCommand": ["npx prisma migrate deploy && npx prisma db seed"],
+    "preDeployCommand": ["npx prisma migrate deploy"],
     "healthcheckPath": "/health",
     "healthcheckTimeout": 60,
     "restartPolicyType": "ON_FAILURE",
