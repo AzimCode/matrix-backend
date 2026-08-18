@@ -12,7 +12,6 @@ export interface AnalyticsOverview {
   uniqueSessions: number;
   projectViews: number;
   cvDownloads: number;
-  contactRequests: number;
   topProjects: { projectId: string; title: string; views: number }[];
   trafficSources: { source: string; count: number }[];
 }
@@ -53,7 +52,7 @@ export class AnalyticsService {
   }
 
   async getOverview(): Promise<AnalyticsOverview> {
-    const [totalViews, uniqueSessionRows, projectViews, cvDownloads, contactRequests, topProjectRows, referrerRows] =
+    const [totalViews, uniqueSessionRows, projectViews, cvDownloads, topProjectRows, referrerRows] =
       await Promise.all([
         this.prisma.analyticsEvent.count({
           where: { event: { in: [AnalyticsEventType.PAGE_VIEW, AnalyticsEventType.PROJECT_VIEW] } },
@@ -61,7 +60,6 @@ export class AnalyticsService {
         this.prisma.analyticsEvent.findMany({ distinct: ['sessionHash'], select: { sessionHash: true } }),
         this.prisma.analyticsEvent.count({ where: { event: AnalyticsEventType.PROJECT_VIEW } }),
         this.prisma.analyticsEvent.count({ where: { event: AnalyticsEventType.CV_DOWNLOAD } }),
-        this.prisma.contactMessage.count(),
         this.prisma.analyticsEvent.groupBy({
           by: ['projectId'],
           where: { event: AnalyticsEventType.PROJECT_VIEW, projectId: { not: null } },
@@ -95,7 +93,6 @@ export class AnalyticsService {
       uniqueSessions: uniqueSessionRows.length,
       projectViews,
       cvDownloads,
-      contactRequests,
       topProjects: topProjectRows
         .filter((r) => r.projectId)
         .map((r) => ({

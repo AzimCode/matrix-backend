@@ -23,7 +23,6 @@ import { SkillsModule } from './skills/skills.module';
 import { EducationModule } from './education/education.module';
 import { CertificatesModule } from './certificates/certificates.module';
 import { ResumeModule } from './resume/resume.module';
-import { ContactModule } from './contact/contact.module';
 import { MediaModule } from './media/media.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { AdminModule } from './admin/admin.module';
@@ -82,7 +81,6 @@ import { HealthModule } from './health/health.module';
     EducationModule,
     CertificatesModule,
     ResumeModule,
-    ContactModule,
     MediaModule,
     AnalyticsModule,
     AdminModule,

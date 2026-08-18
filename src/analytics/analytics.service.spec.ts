@@ -17,7 +17,6 @@ describe('AnalyticsService', () => {
   beforeEach(async () => {
     prisma = {
       analyticsEvent: { create: jest.fn(), count: jest.fn(), findMany: jest.fn(), groupBy: jest.fn() },
-      contactMessage: { count: jest.fn() },
       project: { findMany: jest.fn() },
     };
 
@@ -48,7 +47,7 @@ describe('AnalyticsService', () => {
     await expect(service.track(AnalyticsEventType.CV_DOWNLOAD, req)).resolves.toBeUndefined();
   });
 
-  it('builds an overview combining views, sessions, downloads, and contact requests', async () => {
+  it('builds an overview combining views, sessions and downloads', async () => {
     prisma.analyticsEvent.count
       .mockResolvedValueOnce(120) // totalViews
       .mockResolvedValueOnce(40) // projectViews
@@ -57,14 +56,13 @@ describe('AnalyticsService', () => {
       .mockResolvedValueOnce([{ sessionHash: 'a' }, { sessionHash: 'b' }]) // unique sessions
       .mockResolvedValueOnce([{ referrer: 'https://google.com/search' }]);
     prisma.analyticsEvent.groupBy.mockResolvedValue([]);
-    prisma.contactMessage.count.mockResolvedValue(8);
     prisma.project.findMany.mockResolvedValue([]);
 
     const overview = await service.getOverview();
 
     expect(overview.totalViews).toBe(120);
     expect(overview.uniqueSessions).toBe(2);
-    expect(overview.contactRequests).toBe(8);
+    expect(overview.cvDownloads).toBe(15);
     expect(overview.trafficSources[0]).toEqual({ source: 'google.com', count: 1 });
   });
 });

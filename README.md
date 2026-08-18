@@ -1,6 +1,6 @@
 # THE MATRIX — SYSTEM PROFILE · Backend
 
-A production-ready, framework-structured REST API for an interactive personal portfolio/CV site. This service owns **data, auth, media, contacts, and analytics** — nothing about the Matrix visual layer (animations, glitch effects, 3D, scroll interactions) lives here. Any frontend can be swapped in without touching this backend.
+A production-ready, framework-structured REST API for an interactive personal portfolio/CV site. This service owns **data, auth, media, and analytics** — nothing about the Matrix visual layer (animations, glitch effects, 3D, scroll interactions) lives here. Any frontend can be swapped in without touching this backend.
 
 ## Stack
 
@@ -28,7 +28,6 @@ src/
 ├── education/         # education CRUD
 ├── certificates/       # certificates CRUD
 ├── resume/           # CV/resume versions, S3-backed, signed download URLs
-├── contact/          # public contact form + admin message inbox
 ├── media/            # admin media library (upload/validate/delete)
 ├── analytics/         # privacy-first event tracking + admin overview
 ├── admin/            # admin dashboard aggregator
@@ -94,7 +93,6 @@ All endpoints are namespaced under `/api`, except `/health`. Every response uses
 | Skills | `GET /skills`, `GET /skills/matrix`, `GET /skills/:id`, `GET /skills/:id/relations` | CRUD + relations under `/admin/skills` |
 | Education / Certificates | `GET /education`, `GET /certificates` | CRUD under `/admin/education`, `/admin/certificates` |
 | Resume | `GET /resume`, `GET /resume/download` (redirects to a short-lived signed URL) | upload/activate/delete under `/admin/resume` |
-| Contact | `POST /contact` | inbox under `/admin/messages` |
 | Media | — | upload/delete under `/admin/media` |
 | Analytics | `POST /analytics/track` (page views) | `/admin/analytics/overview`, `/admin/analytics/projects` |
 | Frontend contract | `GET /site` (everything in one call), `GET /system/status` (Matrix presentation data) | `GET /admin/dashboard` |
@@ -123,10 +121,10 @@ These fields live on `Profile` and are editable via `PATCH /api/admin/profile` �
 - **Auth**: JWT access token (short-lived, httpOnly cookie) + rotating refresh token (hashed at rest, reuse triggers full session revocation for that user).
 - **Passwords**: Argon2id.
 - **Brute force**: progressive-delay account lockout after 5 failed attempts, plus a strict per-IP rate limit on `/auth/login`.
-- **CSRF**: double-submit cookie pattern, enforced only on mutating requests from an authenticated (cookie-bearing) session — the public API (profile, projects, contact form) is unaffected.
-- **Rate limiting**: global default limiter (`@nestjs/throttler`) plus stricter per-route limits on login, contact, and analytics tracking.
+- **CSRF**: double-submit cookie pattern, enforced only on mutating requests from an authenticated (cookie-bearing) session — the public API (profile, projects, site) is unaffected.
+- **Rate limiting**: global default limiter (`@nestjs/throttler`) plus stricter per-route limits on login and analytics tracking.
 - **Input validation**: `class-validator` DTOs on every mutating endpoint, `whitelist + forbidNonWhitelisted` globally — unknown fields are rejected, not silently dropped.
-- **XSS**: free-text fields (bio, project descriptions, contact messages) are sanitized server-side (DOMPurify, all tags stripped) regardless of what the frontend does.
+- **XSS**: free-text fields (bio, project descriptions) are sanitized server-side (DOMPurify, all tags stripped) regardless of what the frontend does.
 - **File uploads**: real content is sniffed from magic bytes and must match the declared MIME type (blocks a renamed `.exe`); SVGs are sanitized (scripts/event handlers stripped) before storage; size-limited; filenames sanitized.
 - **Privacy**: IPs are never stored — only a salted SHA-256 hash (`IP_HASH_PEPPER`), used solely for abuse detection and analytics session bucketing. Passwords, tokens, and message bodies are redacted from application logs.
 - **Errors**: a single global exception filter normalizes every error (including raw Prisma errors) into the standard envelope; stack traces and internal messages never reach the client.
@@ -154,8 +152,8 @@ npm run test:e2e
 ```
 
 Coverage includes:
-- **Unit**: auth (credential validation, lockout, refresh-token rotation/reuse detection), profile (private-field exclusion, caching), projects (slug uniqueness, visibility rules), contact (spam heuristics, IP hashing), skills (matrix assembly, self-relation rejection), analytics (never throws, aggregation shape), media (magic-byte sniffing, MIME-mismatch rejection, oversized-file rejection, SVG sanitization), roles guard, CSRF middleware, and the global exception filter (Prisma error mapping, no stack-trace leakage).
-- **e2e**: health check, public profile shape, login (success/failure/lockout path), invalid-JWT rejection, unauthenticated admin access rejection, CSRF enforcement on mutating admin requests, project create → read → delete lifecycle, contact form submission + rate limiting + honeypot spam handling.
+- **Unit**: auth (credential validation, lockout, refresh-token rotation/reuse detection), profile (private-field exclusion, caching), projects (slug uniqueness, visibility rules), skills (matrix assembly, self-relation rejection), analytics (never throws, aggregation shape), media (magic-byte sniffing, MIME-mismatch rejection, oversized-file rejection, SVG sanitization), roles guard, CSRF middleware, and the global exception filter (Prisma error mapping, no stack-trace leakage).
+- **e2e**: health check, public profile shape, login (success/failure/lockout path), invalid-JWT rejection, unauthenticated admin access rejection, CSRF enforcement on mutating admin requests, project create → read → delete lifecycle, and login rate limiting.
 
 > This scaffold was authored without a local Node.js runtime available, so the suite above has not been executed in this environment — run `npm install && npm test` to verify before deploying.
 

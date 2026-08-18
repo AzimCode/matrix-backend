@@ -8,7 +8,6 @@ import {
   renderEducation,
   renderCertificates,
   renderResume,
-  renderMessages,
   renderAccount,
 } from './views.js';
 
@@ -20,7 +19,6 @@ const VIEWS = {
   education: renderEducation,
   certificates: renderCertificates,
   resume: renderResume,
-  messages: renderMessages,
   account: () => renderAccount(showLogin),
 };
 

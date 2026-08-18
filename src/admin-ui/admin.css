@@ -249,15 +249,5 @@ input[type='checkbox'] { width: auto; accent-color: var(--accent); }
 }
 
 .badge.new { border-color: var(--line-strong); color: var(--accent); }
-.badge.spam { border-color: rgba(255, 93, 108, 0.4); color: var(--danger); }
-
-.msg-body {
-  white-space: pre-wrap;
-  word-break: break-word;
-  border-left: 2px solid var(--line);
-  padding-left: 12px;
-  margin-top: 10px;
-  color: var(--text-dim);
-}
 
 .loading { color: var(--text-faint); padding: 20px 0; }

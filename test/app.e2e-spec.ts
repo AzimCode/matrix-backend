@@ -119,42 +119,17 @@ describe('THE MATRIX API (e2e)', () => {
   });
 
   describe('Rate limiting', () => {
-    it('eventually throttles repeated contact form submissions from the same client', async () => {
-      const payload = {
-        name: 'Rate Limit Tester',
-        email: 'ratelimit@example.com',
-        subject: 'Testing',
-        message: 'This message is long enough to pass validation checks.',
-      };
-
+    it('eventually throttles repeated login attempts from the same client', async () => {
       const results: number[] = [];
       for (let i = 0; i < 7; i += 1) {
         // eslint-disable-next-line no-await-in-loop
-        const res = await request(httpServer).post('/api/contact').send(payload);
+        const res = await request(httpServer)
+          .post('/api/auth/login')
+          .send({ email: adminEmail, password: 'definitely-not-the-password' });
         results.push(res.status);
       }
 
       expect(results).toContain(429);
-    });
-  });
-
-  describe('Anti-spam', () => {
-    it('accepts a honeypot-triggered submission with an identical response, but stores it as SPAM', async () => {
-      const res = await request(httpServer)
-        .post('/api/contact')
-        .send({
-          name: 'Bot',
-          email: 'bot@example.com',
-          subject: 'Buy now',
-          message: 'This is definitely not a bot sending you a message right now.',
-          website: 'http://spam.example', // honeypot
-        });
-
-      expect(res.status).toBe(200);
-      expect(res.body.data).toEqual({ received: true });
-
-      const stored = await prisma.contactMessage.findFirst({ where: { email: 'bot@example.com' } });
-      expect(stored?.status).toBe('SPAM');
     });
   });
 

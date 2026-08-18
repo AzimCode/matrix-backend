@@ -588,60 +588,6 @@ export async function renderResume() {
     });
 }
 
-// ── Messages ─────────────────────────────────────────────────
-
-export async function renderMessages() {
-  loading();
-  const res = await api.listMessages();
-  const items = res.items ?? [];
-
-  panel().innerHTML = `
-    <div class="section-head"><div class="section-title">// СООБЩЕНИЯ (${items.length})</div></div>
-    <p class="hint">IP отправителей не сохраняются — только их хэш, для защиты от спама.</p>
-    <div id="list">${items.length ? '' : '<div class="empty">Сообщений нет</div>'}</div>`;
-
-  const list = $('list');
-  items.forEach((m) => {
-    const el = document.createElement('div');
-    el.className = 'card';
-    const badge = m.status === 'NEW' ? 'new' : m.status === 'SPAM' ? 'spam' : '';
-    el.innerHTML = `
-      <div class="card-head">
-        <div>
-          <div class="card-title">${esc(m.subject)} <span class="badge ${badge}">${esc(m.status)}</span></div>
-          <div class="card-sub">${esc(m.name)} — <a href="mailto:${esc(m.email)}" class="link">${esc(m.email)}</a>${
-            m.phone ? ` · <a href="tel:${esc(m.phone)}" class="link">${esc(m.phone)}</a>` : ''
-          } · ${formatDate(m.createdAt)}</div>
-        </div>
-        <div class="card-actions">
-          <button class="btn btn-sm f-arch">В АРХИВ</button>
-          <button class="btn btn-sm f-spam">СПАМ</button>
-          <button class="btn btn-sm btn-danger f-del">УДАЛИТЬ</button>
-        </div>
-      </div>
-      <div class="msg-body">${esc(m.message)}</div>`;
-
-    const setStatus = async (status, btn) => {
-      await withSave(btn, async () => {
-        await api.setMessageStatus(m.id, status);
-        toast('Статус обновлён');
-        renderMessages();
-      });
-    };
-    el.querySelector('.f-arch').onclick = (e) => setStatus('ARCHIVED', e.target);
-    el.querySelector('.f-spam').onclick = (e) => setStatus('SPAM', e.target);
-    el.querySelector('.f-del').onclick = (e) => {
-      if (!confirmDelete('сообщение')) return undefined;
-      return withSave(e.target, async () => {
-        await api.deleteMessage(m.id);
-        toast('Удалено');
-        renderMessages();
-      });
-    };
-    list.appendChild(el);
-  });
-}
-
 // ── Account ──────────────────────────────────────────────────
 
 export async function renderAccount(onLoggedOut) {

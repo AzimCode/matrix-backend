@@ -147,9 +147,4 @@ export const api = {
     if (version) fd.append('version', version);
     return request('/admin/resume', { method: 'POST', body: fd, raw: true });
   },
-
-  listMessages: (status) =>
-    request(`/admin/messages?limit=100${status ? `&status=${status}` : ''}`),
-  setMessageStatus: (id, status) => request(`/admin/messages/${id}`, { method: 'PATCH', body: { status } }),
-  deleteMessage: (id) => request(`/admin/messages/${id}`, { method: 'DELETE' }),
 };
