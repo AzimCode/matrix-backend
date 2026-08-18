@@ -31,6 +31,77 @@ function loading() {
   panel().innerHTML = '<div class="loading">загрузка...</div>';
 }
 
+/** Field readers bound to one card, so every card doesn't redeclare them. */
+function fields(el) {
+  const raw = (sel) => el.querySelector(sel).value;
+  return {
+    raw,
+    val: (sel) => raw(sel).trim(),
+    num: (sel, fallback = 0) => Number(raw(sel).trim()) || fallback,
+    checked: (sel) => el.querySelector(sel).checked,
+    date: (sel) => fromDateInput(raw(sel)),
+  };
+}
+
+/**
+ * The shell every entity tab shares: load, a header with an add button, and a
+ * list that says so when it is empty.
+ */
+async function renderList({ title, hint, load, card, empty = 'Пока пусто' }) {
+  loading();
+  const items = await load();
+
+  panel().innerHTML = `
+    <div class="section-head">
+      <div class="section-title">// ${esc(title)}</div>
+      <button id="add" class="btn">+ ДОБАВИТЬ</button>
+    </div>
+    ${hint ? `<p class="hint">${esc(hint)}</p>` : ''}
+    <div id="list">${items.length ? '' : `<div class="empty">${esc(empty)}</div>`}</div>`;
+
+  const list = $('list');
+  items.forEach((item) => list.appendChild(card(item, items)));
+  $('add').onclick = () => list.prepend(card(null, items));
+}
+
+/**
+ * Wires a card's save and delete buttons.
+ *
+ * Each entity tab used to carry its own copy: the same isNew branch, the same
+ * confirm, and a hand-rolled try/catch doing by hand what withSave already
+ * does. Delete now reports failures exactly the way save does, which the
+ * copies had drifted away from.
+ */
+function wireCard(el, opts) {
+  const { isNew, label, payload, create, update, remove, refresh } = opts;
+  const { createdToast = 'Создано', refreshOnUpdate = false } = opts;
+
+  el.querySelector('.f-save').onclick = (e) =>
+    withSave(e.target, async () => {
+      if (isNew) {
+        await create(payload());
+        toast(createdToast);
+        refresh();
+        return;
+      }
+      await update(payload());
+      toast('Сохранено');
+      if (refreshOnUpdate) refresh();
+    });
+
+  el.querySelector('.f-del').onclick = (e) => {
+    // An unsaved card exists only in the browser, so there is nothing to ask
+    // about and nothing to delete on the server.
+    if (isNew) return el.remove();
+    if (!confirmDelete(label)) return undefined;
+    return withSave(e.target, async () => {
+      await remove();
+      toast('Удалено');
+      refresh();
+    });
+  };
+}
+
 // ── Profile ──────────────────────────────────────────────────
 
 export async function renderProfile() {
@@ -119,20 +190,12 @@ export async function renderProfile() {
 
 // ── Experience ───────────────────────────────────────────────
 
-export async function renderExperience() {
-  loading();
-  const items = await api.listExperience();
-
-  panel().innerHTML = `
-    <div class="section-head">
-      <div class="section-title">// ОПЫТ РАБОТЫ</div>
-      <button id="add" class="btn">+ ДОБАВИТЬ</button>
-    </div>
-    <div id="list">${items.length ? '' : '<div class="empty">Пока пусто</div>'}</div>`;
-
-  const list = $('list');
-  items.forEach((item) => list.appendChild(experienceCard(item)));
-  $('add').onclick = () => list.prepend(experienceCard(null));
+export function renderExperience() {
+  return renderList({
+    title: 'ОПЫТ РАБОТЫ',
+    load: () => api.listExperience(),
+    card: experienceCard,
+  });
 }
 
 function experienceCard(item) {
@@ -158,65 +221,43 @@ function experienceCard(item) {
       <button class="btn btn-danger f-del">УДАЛИТЬ</button>
     </div>`;
 
-  const val = (c) => el.querySelector(c).value.trim();
+  const f = fields(el);
   const payload = () => ({
-    company: val('.f-company'),
-    position: val('.f-position'),
-    ...clean({ location: val('.f-location') }),
-    startDate: fromDateInput(el.querySelector('.f-start').value),
-    endDate: fromDateInput(el.querySelector('.f-end').value),
-    current: el.querySelector('.f-current').checked,
-    description: el.querySelector('.f-desc').value,
-    achievements: toList(el.querySelector('.f-ach').value),
-    technologies: toList(val('.f-tech')),
-    sortOrder: Number(val('.f-sort')) || 0,
+    company: f.val('.f-company'),
+    position: f.val('.f-position'),
+    ...clean({ location: f.val('.f-location') }),
+    startDate: f.date('.f-start'),
+    endDate: f.date('.f-end'),
+    current: f.checked('.f-current'),
+    description: f.raw('.f-desc'),
+    achievements: toList(f.raw('.f-ach')),
+    technologies: toList(f.val('.f-tech')),
+    sortOrder: f.num('.f-sort'),
   });
 
-  el.querySelector('.f-save').onclick = (e) =>
-    withSave(e.target, async () => {
-      if (isNew) {
-        await api.createExperience(payload());
-        toast('Запись создана');
-        renderExperience();
-      } else {
-        await api.updateExperience(item.id, payload());
-        toast('Сохранено');
-      }
-    });
-
-  el.querySelector('.f-del').onclick = async () => {
-    if (isNew) return el.remove();
-    if (!confirmDelete(`запись «${item.company}»`)) return;
-    try {
-      await api.deleteExperience(item.id);
-      toast('Удалено');
-      renderExperience();
-    } catch (err) {
-      fail(err);
-    }
-  };
+  wireCard(el, {
+    isNew,
+    payload,
+    label: `запись «${d.company}»`,
+    createdToast: 'Запись создана',
+    create: (body) => api.createExperience(body),
+    update: (body) => api.updateExperience(item.id, body),
+    remove: () => api.deleteExperience(item.id),
+    refresh: renderExperience,
+  });
 
   return el;
 }
 
 // ── Projects ─────────────────────────────────────────────────
 
-export async function renderProjects() {
-  loading();
-  const res = await api.listProjects();
-  const items = res.items ?? [];
-
-  panel().innerHTML = `
-    <div class="section-head">
-      <div class="section-title">// ПРОЕКТЫ</div>
-      <button id="add" class="btn">+ ДОБАВИТЬ</button>
-    </div>
-    <p class="hint">Только проекты со статусом PUBLISHED попадают на сайт.</p>
-    <div id="list">${items.length ? '' : '<div class="empty">Пока пусто</div>'}</div>`;
-
-  const list = $('list');
-  items.forEach((item) => list.appendChild(projectCard(item)));
-  $('add').onclick = () => list.prepend(projectCard(null));
+export function renderProjects() {
+  return renderList({
+    title: 'ПРОЕКТЫ',
+    hint: 'Только проекты со статусом PUBLISHED попадают на сайт.',
+    load: async () => (await api.listProjects()).items ?? [],
+    card: projectCard,
+  });
 }
 
 function projectCard(item) {
@@ -249,69 +290,57 @@ function projectCard(item) {
       <button class="btn btn-danger f-del">УДАЛИТЬ</button>
     </div>`;
 
-  const val = (c) => el.querySelector(c).value.trim();
+  const f = fields(el);
   const payload = () => ({
-    title: val('.f-title'),
-    description: el.querySelector('.f-desc').value,
-    year: Number(val('.f-year')),
+    title: f.val('.f-title'),
+    description: f.raw('.f-desc'),
+    // No fallback: a blank year must fail validation rather than silently
+    // becoming a real year.
+    year: Number(f.val('.f-year')),
     ...clean({
-      subtitle: val('.f-subtitle'),
-      role: val('.f-role'),
-      client: val('.f-client'),
-      coverImage: val('.f-cover'),
-      liveUrl: val('.f-live'),
-      githubUrl: val('.f-github'),
+      subtitle: f.val('.f-subtitle'),
+      role: f.val('.f-role'),
+      client: f.val('.f-client'),
+      coverImage: f.val('.f-cover'),
+      liveUrl: f.val('.f-live'),
+      githubUrl: f.val('.f-github'),
     }),
-    technologies: toList(val('.f-tech')),
-    featured: el.querySelector('.f-featured').checked,
-    status: val('.f-status'),
-    sortOrder: Number(val('.f-sort')) || 0,
+    technologies: toList(f.val('.f-tech')),
+    featured: f.checked('.f-featured'),
+    status: f.val('.f-status'),
+    sortOrder: f.num('.f-sort'),
   });
 
-  el.querySelector('.f-save').onclick = (e) =>
-    withSave(e.target, async () => {
-      if (isNew) {
-        await api.createProject(payload());
-        toast('Проект создан');
-        renderProjects();
-      } else {
-        await api.updateProject(item.id, payload());
-        toast('Сохранено');
-      }
-    });
-
-  el.querySelector('.f-del').onclick = async () => {
-    if (isNew) return el.remove();
-    if (!confirmDelete(`проект «${item.title}»`)) return;
-    try {
-      await api.deleteProject(item.id);
-      toast('Удалено');
-      renderProjects();
-    } catch (err) {
-      fail(err);
-    }
-  };
+  wireCard(el, {
+    isNew,
+    payload,
+    label: `проект «${d.title}»`,
+    createdToast: 'Проект создан',
+    create: (body) => api.createProject(body),
+    update: (body) => api.updateProject(item.id, body),
+    remove: () => api.deleteProject(item.id),
+    refresh: renderProjects,
+  });
 
   return el;
 }
 
 // ── Skills ───────────────────────────────────────────────────
 
-export async function renderSkills() {
-  loading();
-  const { skills, relations } = await api.skillMatrix();
-
-  panel().innerHTML = `
-    <div class="section-head">
-      <div class="section-title">// МАТРИЦА НАВЫКОВ</div>
-      <button id="add" class="btn">+ ДОБАВИТЬ</button>
-    </div>
-    <p class="hint">Категория задаёт колонку матрицы на сайте, уровень — размер точки. Связи рисуют линии между навыками.</p>
-    <div id="list">${skills.length ? '' : '<div class="empty">Пока пусто</div>'}</div>`;
-
-  const list = $('list');
-  skills.forEach((s) => list.appendChild(skillCard(s, skills, relations)));
-  $('add').onclick = () => list.prepend(skillCard(null, skills, relations));
+export function renderSkills() {
+  // Relations arrive alongside the skills but are needed by the cards, which
+  // renderList only hands the list itself; captured here as load runs first.
+  let relations = [];
+  return renderList({
+    title: 'МАТРИЦА НАВЫКОВ',
+    hint: 'Категория задаёт колонку матрицы на сайте, уровень — размер точки. Связи рисуют линии между навыками.',
+    load: async () => {
+      const matrix = await api.skillMatrix();
+      relations = matrix.relations ?? [];
+      return matrix.skills ?? [];
+    },
+    card: (item, skills) => skillCard(item, skills, relations),
+  });
 }
 
 function skillCard(item, allSkills, relations) {
@@ -346,39 +375,29 @@ function skillCard(item, allSkills, relations) {
       <button class="btn btn-danger f-del">УДАЛИТЬ</button>
     </div>`;
 
-  const val = (c) => el.querySelector(c).value.trim();
+  const f = fields(el);
   const payload = () => ({
-    name: val('.f-name'),
-    category: val('.f-cat'),
-    level: Number(val('.f-level')) || 1,
-    ...clean({ color: val('.f-color') }),
-    ...(val('.f-years') ? { years: Number(val('.f-years')) } : {}),
-    sortOrder: Number(val('.f-sort')) || 0,
+    name: f.val('.f-name'),
+    category: f.val('.f-cat'),
+    level: f.num('.f-level', 1),
+    ...clean({ color: f.val('.f-color') }),
+    ...(f.val('.f-years') ? { years: Number(f.val('.f-years')) } : {}),
+    sortOrder: f.num('.f-sort'),
   });
 
-  el.querySelector('.f-save').onclick = (e) =>
-    withSave(e.target, async () => {
-      if (isNew) {
-        await api.createSkill(payload());
-        toast('Навык создан');
-      } else {
-        await api.updateSkill(item.id, payload());
-        toast('Сохранено');
-      }
-      renderSkills();
-    });
-
-  el.querySelector('.f-del').onclick = async () => {
-    if (isNew) return el.remove();
-    if (!confirmDelete(`навык «${item.name}»`)) return;
-    try {
-      await api.deleteSkill(item.id);
-      toast('Удалено');
-      renderSkills();
-    } catch (err) {
-      fail(err);
-    }
-  };
+  wireCard(el, {
+    isNew,
+    payload,
+    label: `навык «${d.name}»`,
+    createdToast: 'Навык создан',
+    create: (body) => api.createSkill(body),
+    update: (body) => api.updateSkill(item.id, body),
+    remove: () => api.deleteSkill(item.id),
+    refresh: renderSkills,
+    // A rename has to redraw every other card's relation badges, which show
+    // this skill by name.
+    refreshOnUpdate: true,
+  });
 
   el.querySelector('.f-link')?.addEventListener('click', async (e) => {
     const target = el.querySelector('.f-rel').value;
@@ -408,18 +427,12 @@ function skillCard(item, allSkills, relations) {
 
 // ── Education / Certificates ─────────────────────────────────
 
-export async function renderEducation() {
-  loading();
-  const items = await api.listEducation();
-  panel().innerHTML = `
-    <div class="section-head">
-      <div class="section-title">// ОБРАЗОВАНИЕ</div>
-      <button id="add" class="btn">+ ДОБАВИТЬ</button>
-    </div>
-    <div id="list">${items.length ? '' : '<div class="empty">Пока пусто</div>'}</div>`;
-  const list = $('list');
-  items.forEach((i) => list.appendChild(educationCard(i)));
-  $('add').onclick = () => list.prepend(educationCard(null));
+export function renderEducation() {
+  return renderList({
+    title: 'ОБРАЗОВАНИЕ',
+    load: () => api.listEducation(),
+    card: educationCard,
+  });
 }
 
 function educationCard(item) {
@@ -442,55 +455,35 @@ function educationCard(item) {
       <button class="btn btn-danger f-del">УДАЛИТЬ</button>
     </div>`;
 
-  const val = (c) => el.querySelector(c).value.trim();
+  const f = fields(el);
   const payload = () => ({
-    institution: val('.f-inst'),
-    degree: val('.f-degree'),
-    ...clean({ field: val('.f-field'), description: el.querySelector('.f-desc').value.trim() }),
-    startDate: fromDateInput(el.querySelector('.f-start').value),
-    endDate: fromDateInput(el.querySelector('.f-end').value),
-    sortOrder: Number(val('.f-sort')) || 0,
+    institution: f.val('.f-inst'),
+    degree: f.val('.f-degree'),
+    ...clean({ field: f.val('.f-field'), description: f.val('.f-desc') }),
+    startDate: f.date('.f-start'),
+    endDate: f.date('.f-end'),
+    sortOrder: f.num('.f-sort'),
   });
 
-  el.querySelector('.f-save').onclick = (e) =>
-    withSave(e.target, async () => {
-      if (isNew) {
-        await api.createEducation(payload());
-        toast('Создано');
-        renderEducation();
-      } else {
-        await api.updateEducation(item.id, payload());
-        toast('Сохранено');
-      }
-    });
-
-  el.querySelector('.f-del').onclick = async () => {
-    if (isNew) return el.remove();
-    if (!confirmDelete(`запись «${item.institution}»`)) return;
-    try {
-      await api.deleteEducation(item.id);
-      toast('Удалено');
-      renderEducation();
-    } catch (err) {
-      fail(err);
-    }
-  };
+  wireCard(el, {
+    isNew,
+    payload,
+    label: `запись «${d.institution}»`,
+    create: (body) => api.createEducation(body),
+    update: (body) => api.updateEducation(item.id, body),
+    remove: () => api.deleteEducation(item.id),
+    refresh: renderEducation,
+  });
 
   return el;
 }
 
-export async function renderCertificates() {
-  loading();
-  const items = await api.listCertificates();
-  panel().innerHTML = `
-    <div class="section-head">
-      <div class="section-title">// СЕРТИФИКАТЫ</div>
-      <button id="add" class="btn">+ ДОБАВИТЬ</button>
-    </div>
-    <div id="list">${items.length ? '' : '<div class="empty">Пока пусто</div>'}</div>`;
-  const list = $('list');
-  items.forEach((i) => list.appendChild(certificateCard(i)));
-  $('add').onclick = () => list.prepend(certificateCard(null));
+export function renderCertificates() {
+  return renderList({
+    title: 'СЕРТИФИКАТЫ',
+    load: () => api.listCertificates(),
+    card: certificateCard,
+  });
 }
 
 function certificateCard(item) {
@@ -512,38 +505,24 @@ function certificateCard(item) {
       <button class="btn btn-danger f-del">УДАЛИТЬ</button>
     </div>`;
 
-  const val = (c) => el.querySelector(c).value.trim();
+  const f = fields(el);
   const payload = () => ({
-    title: val('.f-title'),
-    issuer: val('.f-issuer'),
-    issueDate: fromDateInput(el.querySelector('.f-date').value),
-    ...clean({ credentialUrl: val('.f-url'), credentialId: val('.f-cid') }),
-    sortOrder: Number(val('.f-sort')) || 0,
+    title: f.val('.f-title'),
+    issuer: f.val('.f-issuer'),
+    issueDate: f.date('.f-date'),
+    ...clean({ credentialUrl: f.val('.f-url'), credentialId: f.val('.f-cid') }),
+    sortOrder: f.num('.f-sort'),
   });
 
-  el.querySelector('.f-save').onclick = (e) =>
-    withSave(e.target, async () => {
-      if (isNew) {
-        await api.createCertificate(payload());
-        toast('Создано');
-        renderCertificates();
-      } else {
-        await api.updateCertificate(item.id, payload());
-        toast('Сохранено');
-      }
-    });
-
-  el.querySelector('.f-del').onclick = async () => {
-    if (isNew) return el.remove();
-    if (!confirmDelete(`сертификат «${item.title}»`)) return;
-    try {
-      await api.deleteCertificate(item.id);
-      toast('Удалено');
-      renderCertificates();
-    } catch (err) {
-      fail(err);
-    }
-  };
+  wireCard(el, {
+    isNew,
+    payload,
+    label: `сертификат «${d.title}»`,
+    create: (body) => api.createCertificate(body),
+    update: (body) => api.updateCertificate(item.id, body),
+    remove: () => api.deleteCertificate(item.id),
+    refresh: renderCertificates,
+  });
 
   return el;
 }
@@ -588,15 +567,13 @@ export async function renderResume() {
         renderResume();
       });
     });
-    el.querySelector('.f-del')?.addEventListener('click', async () => {
-      if (!confirmDelete(`версию «${r.version}»`)) return;
-      try {
+    el.querySelector('.f-del')?.addEventListener('click', (e) => {
+      if (!confirmDelete(`версию «${r.version}»`)) return undefined;
+      return withSave(e.target, async () => {
         await api.deleteResume(r.id);
         toast('Удалено');
         renderResume();
-      } catch (err) {
-        fail(err);
-      }
+      });
     });
     list.appendChild(el);
   });
@@ -653,15 +630,13 @@ export async function renderMessages() {
     };
     el.querySelector('.f-arch').onclick = (e) => setStatus('ARCHIVED', e.target);
     el.querySelector('.f-spam').onclick = (e) => setStatus('SPAM', e.target);
-    el.querySelector('.f-del').onclick = async () => {
-      if (!confirmDelete('сообщение')) return;
-      try {
+    el.querySelector('.f-del').onclick = (e) => {
+      if (!confirmDelete('сообщение')) return undefined;
+      return withSave(e.target, async () => {
         await api.deleteMessage(m.id);
         toast('Удалено');
         renderMessages();
-      } catch (err) {
-        fail(err);
-      }
+      });
     };
     list.appendChild(el);
   });

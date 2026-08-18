@@ -32,7 +32,17 @@ export class ApiError extends Error {
 // error the user can act on.
 const TIMEOUT_MS = 20000;
 
-async function request(path, { method = 'GET', body, raw } = {}) {
+/**
+ * Fired when a call fails with UNAUTHORIZED on anything other than the sign-in
+ * probes — i.e. the session lapsed while the panel was open.
+ *
+ * Announced from here rather than handled per call site: tab loads used to be
+ * the only place that noticed, so an expired session during a save just showed
+ * a raw server string and left the admin typing into a dead panel.
+ */
+export const SESSION_EXPIRED = 'admin:session-expired';
+
+async function request(path, { method = 'GET', body, raw, anonymous = false } = {}) {
   const headers = {};
   if (body && !raw) headers['Content-Type'] = 'application/json';
   if (method !== 'GET') {
@@ -70,7 +80,15 @@ async function request(path, { method = 'GET', body, raw } = {}) {
 
   if (!res.ok || payload?.success === false) {
     const err = payload?.error;
-    throw new ApiError(err?.code ?? `HTTP_${res.status}`, err?.message ?? res.statusText, err?.details);
+    const apiError = new ApiError(
+      err?.code ?? `HTTP_${res.status}`,
+      err?.message ?? res.statusText,
+      err?.details,
+    );
+    if (apiError.code === 'UNAUTHORIZED' && !anonymous) {
+      window.dispatchEvent(new CustomEvent(SESSION_EXPIRED));
+    }
+    throw apiError;
   }
 
   return payload?.data ?? null;
@@ -78,9 +96,12 @@ async function request(path, { method = 'GET', body, raw } = {}) {
 
 export const api = {
   config: () => request('/config'),
-  login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
+  // Both are expected to 401 when nobody is signed in, so neither should be
+  // read as a session that just expired.
+  login: (email, password) =>
+    request('/auth/login', { method: 'POST', body: { email, password }, anonymous: true }),
   logout: () => request('/auth/logout', { method: 'POST' }),
-  me: () => request('/auth/me'),
+  me: () => request('/auth/me', { anonymous: true }),
   changePassword: (currentPassword, newPassword) =>
     request('/auth/password', { method: 'PATCH', body: { currentPassword, newPassword } }),
 
@@ -127,17 +148,8 @@ export const api = {
     return request('/admin/resume', { method: 'POST', body: fd, raw: true });
   },
 
-  listMedia: () => request('/admin/media?limit=100'),
-  uploadMedia: (file) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return request('/admin/media', { method: 'POST', body: fd, raw: true });
-  },
-  deleteMedia: (id) => request(`/admin/media/${id}`, { method: 'DELETE' }),
-
   listMessages: (status) =>
     request(`/admin/messages?limit=100${status ? `&status=${status}` : ''}`),
-  readMessage: (id) => request(`/admin/messages/${id}`),
   setMessageStatus: (id, status) => request(`/admin/messages/${id}`, { method: 'PATCH', body: { status } }),
   deleteMessage: (id) => request(`/admin/messages/${id}`, { method: 'DELETE' }),
 };

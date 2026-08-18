@@ -1,5 +1,5 @@
-import { api, ApiError } from './api.js';
-import { $, toast } from './ui.js';
+import { api, ApiError, SESSION_EXPIRED } from './api.js';
+import { $, esc, toast } from './ui.js';
 import {
   renderProfile,
   renderExperience,
@@ -39,19 +39,19 @@ async function showApp(user) {
   // rather than guessing from its own address — getting that wrong is what
   // sends people to the API root looking for the site.
   const link = $('site-link');
-  try {
-    const { siteUrl } = await api.config();
-    if (siteUrl) {
-      link.href = siteUrl;
-      link.hidden = false;
-    } else {
+  const showSiteLink = async () => {
+    try {
+      const { siteUrl } = await api.config();
+      link.href = siteUrl || '';
+      link.hidden = !siteUrl;
+    } catch {
       link.hidden = true;
     }
-  } catch {
-    link.hidden = true;
-  }
+  };
 
-  await openTab(localStorage.getItem('admin.tab') || 'profile');
+  // Independent of each other, so the panel's first data request no longer
+  // waits on a round trip that only fills in a header link.
+  await Promise.all([showSiteLink(), openTab(localStorage.getItem('admin.tab') || 'profile')]);
 }
 
 async function openTab(name) {
@@ -65,16 +65,21 @@ async function openTab(name) {
   try {
     await VIEWS[view]();
   } catch (err) {
-    // An expired session surfaces as 401 on the first data call after the
-    // access token lapses; try one silent refresh before forcing a re-login.
-    if (err instanceof ApiError && err.code === 'UNAUTHORIZED') {
-      showLogin();
-      toast('Сессия истекла — войдите заново', true);
-      return;
-    }
-    $('panel').innerHTML = `<div class="empty">Не удалось загрузить: ${err.message}</div>`;
+    // UNAUTHORIZED is already handled by the SESSION_EXPIRED listener, which
+    // has put the login form back up; writing an error into the hidden panel
+    // behind it would only be waiting there after the next sign-in.
+    if (err instanceof ApiError && err.code === 'UNAUTHORIZED') return;
+    $('panel').innerHTML = `<div class="empty">Не удалось загрузить: ${esc(err.message)}</div>`;
   }
 }
+
+// One place decides what an expired session looks like, no matter which of the
+// panel's calls discovered it.
+window.addEventListener(SESSION_EXPIRED, () => {
+  if ($('app-view').hidden) return;
+  showLogin();
+  toast('Сессия истекла — войдите заново', true);
+});
 
 $('tabs').addEventListener('click', (e) => {
   const tab = e.target.closest('.tab');
