@@ -1,7 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AdminRole } from '@prisma/client';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { hashPassword } from './users.service';
+import { UsersService } from './users.service';
+import { passwordProblems } from './dto/password.rules';
 
 /**
  * Creates the very first ADMIN from environment variables.
@@ -19,7 +20,10 @@ import { hashPassword } from './users.service';
 export class AdminBootstrapService implements OnModuleInit {
   private readonly logger = new Logger(AdminBootstrapService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly users: UsersService,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
@@ -44,9 +48,10 @@ export class AdminBootstrapService implements OnModuleInit {
       return;
     }
 
-    await this.prisma.adminUser.create({
-      data: { email, passwordHash: await hashPassword(password), role: AdminRole.ADMIN },
-    });
+    // Goes through UsersService rather than Prisma directly, so the first
+    // account — the one nobody reviews afterwards — is created exactly the way
+    // every other admin account is.
+    await this.users.create(email, password, AdminRole.ADMIN);
 
     this.logger.warn(
       `Bootstrapped the first ADMIN account (${email}). ` +
@@ -54,14 +59,4 @@ export class AdminBootstrapService implements OnModuleInit {
         'in the environment is a standing risk, and it serves no further purpose.',
     );
   }
-}
-
-/** Same rules as CreateAdminUserDto, so a bootstrapped password is never weaker. */
-function passwordProblems(password: string): string[] {
-  const problems: string[] = [];
-  if (password.length < 12) problems.push('at least 12 characters');
-  if (!/[a-z]/.test(password)) problems.push('a lowercase letter');
-  if (!/[A-Z]/.test(password)) problems.push('an uppercase letter');
-  if (!/[0-9]/.test(password)) problems.push('a digit');
-  return problems;
 }

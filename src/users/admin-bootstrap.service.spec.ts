@@ -1,17 +1,38 @@
 import { Test } from '@nestjs/testing';
 import * as argon2 from 'argon2';
 import { AdminBootstrapService } from './admin-bootstrap.service';
+import { UsersService } from './users.service';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { PASSWORD_MAX_LENGTH } from './dto/password.rules';
 
 describe('AdminBootstrapService', () => {
   let service: AdminBootstrapService;
-  let prisma: { adminUser: { count: jest.Mock; create: jest.Mock } };
+  let prisma: {
+    adminUser: { count: jest.Mock; create: jest.Mock; findUnique: jest.Mock };
+  };
   const originalEnv = { ...process.env };
 
   beforeEach(async () => {
-    prisma = { adminUser: { count: jest.fn().mockResolvedValue(0), create: jest.fn() } };
+    prisma = {
+      adminUser: {
+        count: jest.fn().mockResolvedValue(0),
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockImplementation(({ data }) =>
+          Promise.resolve({
+            id: 'user-1',
+            lastLoginAt: null,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            ...data,
+          }),
+        ),
+      },
+    };
+    // The real UsersService is wired in deliberately: the point of routing the
+    // bootstrap through it is that both paths create an account identically,
+    // and a mock would assert nothing about that.
     const moduleRef = await Test.createTestingModule({
-      providers: [AdminBootstrapService, { provide: PrismaService, useValue: prisma }],
+      providers: [AdminBootstrapService, UsersService, { provide: PrismaService, useValue: prisma }],
     }).compile();
     service = moduleRef.get(AdminBootstrapService);
   });
@@ -66,6 +87,14 @@ describe('AdminBootstrapService', () => {
 
   it('refuses a password that is too short', async () => {
     setEnv('owner@example.com', 'Short1');
+
+    await service.onModuleInit();
+
+    expect(prisma.adminUser.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a password longer than the API allows', async () => {
+    setEnv('owner@example.com', `Aa1${'x'.repeat(PASSWORD_MAX_LENGTH)}`);
 
     await service.onModuleInit();
 
